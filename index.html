@@ -455,11 +455,17 @@
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-1">Mesin Suara (TTS)</label>
                             <select id="ttsEngineSelect" onchange="toggleTtsVoiceOptions()" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800">
+                                <option value="browser">Browser TTS (Langsung / Offline)</option>
                                 <option value="gemini">Gemini AI Voice (Natural)</option>
-                                <option value="browser">Browser TTS (Offline Cepat)</option>
                             </select>
                         </div>
-                        <div id="geminiVoiceWrapper">
+                        <div id="browserVoiceWrapper">
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Suara Perangkat</label>
+                            <select id="browserVoiceSelect" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800">
+                                <option value="">Otomatis (Bahasa Indonesia)</option>
+                            </select>
+                        </div>
+                        <div id="geminiVoiceWrapper" class="hidden">
                             <label class="block text-xs font-bold text-slate-700 mb-1">Karakter Suara AI</label>
                             <select id="geminiVoiceName" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800">
                                 <option value="Kore">Kore (Tegas & Jelas)</option>
@@ -471,10 +477,34 @@
                         </div>
                     </div>
 
-                    <!-- Gaya Bicara AI -->
-                    <div id="geminiStyleWrapper">
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Instruksi Gaya Bicara (Opsional)</label>
-                        <input type="text" id="ttsStylePrompt" value="Ucapkan dengan nada resmi, ramah, dan artikulasi jelas seperti penyiar informasi sekolah dalam Bahasa Indonesia:" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-700">
+                    <!-- Pengaturan Kecepatan Browser TTS -->
+                    <div id="browserSettingsWrapper" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Kecepatan Bicara</label>
+                            <select id="browserTtsRate" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800">
+                                <option value="0.85">Agak Lambat (Jelas untuk Pengeras Suara)</option>
+                                <option value="0.95" selected>Normal (Standar Penyiar)</option>
+                                <option value="1.1">Cepat</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <div id="ttsDeviceStatusBox" class="w-full px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200/80 text-[11px] text-emerald-800 flex items-center gap-2">
+                                <i id="ttsDeviceStatusIcon" class="fa-solid fa-circle-check text-emerald-600"></i>
+                                <span id="ttsDeviceStatusText">Suara perangkat aktif & siap digunakan.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gaya Bicara & API Key Opsional AI -->
+                    <div id="geminiStyleWrapper" class="hidden space-y-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Instruksi Gaya Bicara (Opsional)</label>
+                            <input type="text" id="ttsStylePrompt" value="Ucapkan dengan nada resmi, ramah, dan artikulasi jelas seperti penyiar informasi sekolah dalam Bahasa Indonesia:" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-700">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Gemini API Key (Opsional untuk GitHub Pages)</label>
+                            <input type="password" id="customGeminiApiKey" onchange="saveCustomApiKey(this.value)" placeholder="Kosongkan jika memakai Browser TTS otomatis..." class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-700">
+                        </div>
                     </div>
 
                     <!-- Input Teks Pengumuman -->
@@ -798,6 +828,7 @@
             schoolName: 'SMA NEGERI 1 NUSANTARA',
             masterEnabled: true,
             selectedEditProfileId: 'prof-reguler',
+            geminiApiKey: '',
             // Pemetaan hari default (0 = Minggu ... 6 = Sabtu) -> profileId atau 'holiday'
             weeklyMapping: {
                 1: 'prof-reguler',
@@ -893,6 +924,7 @@
             renderBuiltInAudioList();
             renderCalendar();
             renderCalendarOverridesList();
+            initTtsEngineSettings();
         };
 
         /**
@@ -1212,6 +1244,7 @@
         }
 
         function testNextScheduledBell() {
+            unlockSpeechSynthesis();
             if (window._currentNextBell) {
                 const b = window._currentNextBell;
                 executeBellSequence(b.name, b.audioId, b.tts);
@@ -1232,12 +1265,25 @@
             return audioCtx;
         }
 
-        function unlockAudioSystem() {
+        // Membuka kunci izin audio & Web Speech API saat pengguna menekan tombol
+        function unlockSpeechSynthesis() {
             ensureAudioContext();
+            if ('speechSynthesis' in window) {
+                try {
+                    if (window.speechSynthesis.paused) {
+                        window.speechSynthesis.resume();
+                    }
+                    window.speechSynthesis.getVoices();
+                } catch (e) {}
+            }
+        }
+
+        function unlockAudioSystem() {
+            unlockSpeechSynthesis();
             document.getElementById('autoplayBanner').classList.add('hidden');
             document.getElementById('audioUnlockBtn').classList.add('hidden');
             playBuiltInChime('chime-tingtong');
-            showToast('Sistem audio aktif! Bel siap berbunyi otomatis.', 'success');
+            showToast('Sistem audio & suara pengumuman aktif!', 'success');
         }
 
         function showNowPlaying(title, subtitle) {
@@ -1253,22 +1299,27 @@
             document.getElementById('nowPlayingBar').classList.add('hidden');
         }
 
-        function stopAllAudio() {
-            // Hentikan HTML Audio (MP3 / WAV TTS)
+        function stopChimeAndMediaOnly() {
             if (currentHtmlAudio) {
                 currentHtmlAudio.pause();
                 currentHtmlAudio.currentTime = 0;
                 currentHtmlAudio = null;
             }
-            // Hentikan Oscillator Web Audio
             activeOscillators.forEach(osc => {
                 try { osc.stop(); } catch (e) {}
             });
             activeOscillators = [];
-            // Hentikan Browser SpeechSynthesis
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
+        }
+
+        function stopAllAudio() {
+            stopChimeAndMediaOnly();
+            // Hentikan Browser SpeechSynthesis hanya jika sedang berbicara
+            if ('speechSynthesis' in window && (window.speechSynthesis.speaking || window.speechSynthesis.pending)) {
+                try {
+                    window.speechSynthesis.cancel();
+                } catch (e) {}
             }
+            window._currentUtterance = null;
             hideNowPlaying();
         }
 
@@ -1293,6 +1344,7 @@
         }
 
         function triggerQuickBell(title, defaultChime, ttsText) {
+            unlockSpeechSynthesis();
             executeBellSequence(title, defaultChime, ttsText);
         }
 
@@ -1431,8 +1483,78 @@
         /**
          * GEMINI TTS API (`gemini-2.5-flash-preview-tts`) + BROWSER TTS FALLBACK
          */
+        function initTtsEngineSettings() {
+            const keyInput = document.getElementById('customGeminiApiKey');
+            if (keyInput && appState.geminiApiKey) {
+                keyInput.value = appState.geminiApiKey;
+            }
+
+            // Jika dijalankan di GitHub Pages / file lokal tanpa API Key khusus, gunakan Browser TTS agar langsung bersuara
+            const isExternalHost = window.location.hostname.endsWith('github.io') || window.location.protocol === 'file:';
+            const engineSelect = document.getElementById('ttsEngineSelect');
+            if (engineSelect) {
+                engineSelect.value = (!isExternalHost || appState.geminiApiKey) ? 'gemini' : 'browser';
+                toggleTtsVoiceOptions();
+            }
+
+            populateBrowserVoices();
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.onvoiceschanged = populateBrowserVoices;
+            }
+        }
+
+        function saveCustomApiKey(val) {
+            appState.geminiApiKey = (val || '').trim();
+            saveStateToStorage();
+            showToast(appState.geminiApiKey ? 'API Key Gemini disimpan.' : 'API Key dihapus.', 'info');
+        }
+
+        function populateBrowserVoices() {
+            const select = document.getElementById('browserVoiceSelect');
+            const statusText = document.getElementById('ttsDeviceStatusText');
+            if (!('speechSynthesis' in window)) {
+                if (statusText) statusText.textContent = 'Browser ini tidak mendukung TTS.';
+                return;
+            }
+
+            const voices = window.speechSynthesis.getVoices();
+            if (!voices || voices.length === 0) {
+                if (statusText) statusText.textContent = 'Menggunakan suara bawaan sistem HP/PC.';
+                return;
+            }
+
+            const currentSelection = select ? select.value : '';
+            const isIndo = (v) => {
+                const lang = (v.lang || '').toLowerCase();
+                return lang.startsWith('id') || lang.startsWith('in-') || lang === 'in' || lang.includes('indones');
+            };
+            const idVoices = voices.filter(isIndo);
+            const otherVoices = voices.filter(v => !isIndo(v));
+
+            if (statusText) {
+                statusText.textContent = idVoices.length > 0
+                    ? `Suara Indonesia siap (${idVoices[0].name})`
+                    : `Suara sistem siap (${voices[0].name})`;
+            }
+
+            if (!select) return;
+
+            let html = `<option value="">Otomatis (${idVoices.length > 0 ? idVoices[0].name : voices[0].name})</option>`;
+            if (idVoices.length > 0) {
+                html += `<optgroup label="Bahasa Indonesia">${idVoices.map(v => `<option value="${v.name}">${v.name} (${v.lang})</option>`).join('')}</optgroup>`;
+            }
+            if (otherVoices.length > 0) {
+                html += `<optgroup label="Suara Perangkat Lainnya">${otherVoices.slice(0, 20).map(v => `<option value="${v.name}">${v.name} (${v.lang})</option>`).join('')}</optgroup>`;
+            }
+
+            select.innerHTML = html;
+            if (currentSelection) {
+                select.value = currentSelection;
+            }
+        }
+
         async function speakAnnouncement(text) {
-            const engine = document.getElementById('ttsEngineSelect')?.value || 'gemini';
+            const engine = document.getElementById('ttsEngineSelect')?.value || 'browser';
             const voiceName = document.getElementById('geminiVoiceName')?.value || 'Kore';
             const stylePrompt = document.getElementById('ttsStylePrompt')?.value ||
                 'Ucapkan dengan nada resmi, ramah, dan artikulasi jelas seperti penyiar informasi sekolah dalam Bahasa Indonesia:';
@@ -1444,7 +1566,7 @@
                         return await playWavUrl(wavUrl);
                     }
                 } catch (err) {
-                    // Fallback otomatis ke Browser SpeechSynthesis jika jaringan offline
+                    // Fallback otomatis ke Browser SpeechSynthesis
                 }
             }
 
@@ -1457,7 +1579,7 @@
                 return ttsAudioCache.get(cacheKey);
             }
 
-            const apiKey = ""; // Dibiarkan kosong agar runtime menyediakan kunci secara otomatis
+            const apiKey = appState.geminiApiKey || "";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
 
             const fullPrompt = `${stylePrompt} "${text}"`;
@@ -1476,7 +1598,7 @@
                 model: "gemini-2.5-flash-preview-tts"
             };
 
-            // Implementasi Exponential Backoff (1s, 2s, 4s)
+            // Implementasi Exponential Backoff (1s, 2s, 4s) - langsung beralih jika API Key tidak valid (400/401/403)
             const delays = [1000, 2000, 4000];
             for (let attempt = 0; attempt <= delays.length; attempt++) {
                 try {
@@ -1487,6 +1609,9 @@
                     });
 
                     if (!response.ok) {
+                        if (response.status === 400 || response.status === 401 || response.status === 403) {
+                            return null;
+                        }
                         throw new Error(`HTTP ${response.status}`);
                     }
 
@@ -1517,8 +1642,159 @@
             }
             return null;
         }
+        async function speakWithBrowserTts(text) {
+            if (!('speechSynthesis' in window)) {
+                showToast('Browser perangkat ini tidak mendukung suara teks (TTS).', 'error');
+                return;
+            }
 
-        // Konversi Base64 ke ArrayBuffer
+            try {
+                if (window.speechSynthesis.paused) {
+                    window.speechSynthesis.resume();
+                }
+            } catch (e) {}
+
+            let voices = window.speechSynthesis.getVoices();
+            if (!voices || voices.length === 0) {
+                await new Promise(r => setTimeout(r, 150));
+                voices = window.speechSynthesis.getVoices();
+            }
+
+            const isIndo = (v) => {
+                const lang = (v.lang || '').toLowerCase();
+                return lang.startsWith('id') || lang.startsWith('in-') || lang === 'in' || lang.includes('indones');
+            };
+
+            const chosenVoiceName = document.getElementById('browserVoiceSelect')?.value || '';
+            const matchedVoice = chosenVoiceName
+                ? voices.find(v => v.name === chosenVoiceName)
+                : (voices.find(isIndo) || voices.find(v => v.default) || voices[0]);
+
+            const runUtterance = (useSpecificVoice) => {
+                return new Promise((resolve) => {
+                    let settled = false;
+                    let hasStarted = false;
+                    let keepAliveTimer = null;
+                    let safetyTimer = null;
+                    let startWatchdog = null;
+
+                    const finish = (startedFlag) => {
+                        if (settled) return;
+                        settled = true;
+                        if (keepAliveTimer) clearInterval(keepAliveTimer);
+                        if (safetyTimer) clearTimeout(safetyTimer);
+                        if (startWatchdog) clearTimeout(startWatchdog);
+                        window._currentUtterance = null;
+                        resolve(startedFlag);
+                    };
+
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    // Simpan di window agar tidak dihapus Garbage Collector Chrome sebelum selesai bicara
+                    window._currentUtterance = utterance;
+
+                    if (useSpecificVoice && matchedVoice) {
+                        utterance.voice = matchedVoice;
+                        utterance.lang = matchedVoice.lang;
+                    }
+
+                    utterance.volume = 1.0;
+                    utterance.rate = parseFloat(document.getElementById('browserTtsRate')?.value || '0.95');
+                    utterance.pitch = 1.0;
+
+                    utterance.onstart = () => {
+                        hasStarted = true;
+                    };
+                    utterance.onend = () => finish(true);
+                    utterance.onerror = () => finish(hasStarted);
+
+                    // Pengawas jika mesin TTS HP tidak merespons dalam 1.8 detik
+                    startWatchdog = setTimeout(() => {
+                        if (!hasStarted) {
+                            try { window.speechSynthesis.cancel(); } catch (e) {}
+                            finish(false);
+                        }
+                    }, 1800);
+
+                    // Mencegah Chrome menjeda suara di tengah kalimat panjang
+                    keepAliveTimer = setInterval(() => {
+                        try {
+                            if (window.speechSynthesis.paused) {
+                                window.speechSynthesis.resume();
+                            }
+                        } catch (e) {}
+                    }, 400);
+
+                    const maxDurationMs = Math.max(10000, text.length * 180);
+                    safetyTimer = setTimeout(() => finish(hasStarted), maxDurationMs);
+
+                    try {
+                        window.speechSynthesis.speak(utterance);
+                    } catch (err) {
+                        finish(false);
+                    }
+                });
+            };
+
+            // Percobaan 1: Gunakan suara Indonesia / pilihan pengguna
+            let success = await runUtterance(true);
+
+            // Percobaan 2: Jika HP tidak punya paket suara Indonesia, coba ulang pakai suara default sistem tanpa paksa bahasa
+            if (!success) {
+                await new Promise(r => setTimeout(r, 120));
+                success = await runUtterance(false);
+            }
+
+            if (!success) {
+                showToast('Suara TTS HP tidak keluar. Pastikan volume Media naik & Text-to-Speech aktif di Pengaturan HP.', 'error');
+            }
+        }
+
+        // Kontrol UI Konsol Pengumuman Suara (Tab 3)
+        async function broadcastCustomTts() {
+            unlockSpeechSynthesis();
+            const text = document.getElementById('ttsAnnouncementText').value.trim();
+            const introChime = document.getElementById('ttsIntroChime').value;
+            const engine = document.getElementById('ttsEngineSelect')?.value || 'browser';
+
+            if (!text) {
+                showToast('Silakan masukkan teks pengumuman terlebih dahulu.', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('broadcastTtsBtn');
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>Menyiarkan...</span>`;
+
+            try {
+                // Jika tanpa nada pembuka & memakai Browser TTS, jalankan langsung dalam klik user agar tidak diblokir HP
+                if (introChime === 'none' && engine === 'browser') {
+                    stopChimeAndMediaOnly();
+                    showNowPlaying('Pengumuman Langsung', text);
+                    await speakWithBrowserTts(text);
+                    hideNowPlaying();
+                } else {
+                    await executeBellSequence('Pengumuman Langsung', introChime, text);
+                }
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        }
+
+        function useTtsTemplate(text) {
+            document.getElementById('ttsAnnouncementText').value = text;
+            showToast('Template disalin ke kotak pengumuman.', 'info');
+        }
+
+        function toggleTtsVoiceOptions() {
+            const isGemini = document.getElementById('ttsEngineSelect').value === 'gemini';
+            document.getElementById('geminiVoiceWrapper').classList.toggle('hidden', !isGemini);
+            document.getElementById('geminiStyleWrapper').classList.toggle('hidden', !isGemini);
+            document.getElementById('browserVoiceWrapper').classList.toggle('hidden', isGemini);
+            document.getElementById('browserSettingsWrapper').classList.toggle('hidden', isGemini);
+        }
+
         function base64ToArrayBuffer(base64) {
             const binaryString = atob(base64);
             const len = binaryString.length;
@@ -1581,55 +1857,6 @@
                 };
                 audio.play().catch(() => resolve());
             });
-        }
-
-        function speakWithBrowserTts(text) {
-            return new Promise((resolve) => {
-                if (!('speechSynthesis' in window)) {
-                    resolve();
-                    return;
-                }
-                window.speechSynthesis.cancel();
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'id-ID';
-                utterance.rate = 0.95;
-                utterance.onend = () => resolve();
-                utterance.onerror = () => resolve();
-                window.speechSynthesis.speak(utterance);
-            });
-        }
-
-        // Kontrol UI Konsol Pengumuman Suara (Tab 3)
-        async function broadcastCustomTts() {
-            const text = document.getElementById('ttsAnnouncementText').value.trim();
-            const introChime = document.getElementById('ttsIntroChime').value;
-            if (!text) {
-                showToast('Silakan masukkan teks pengumuman terlebih dahulu.', 'error');
-                return;
-            }
-
-            const btn = document.getElementById('broadcastTtsBtn');
-            const originalHtml = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>Memproses Suara...</span>`;
-
-            try {
-                await executeBellSequence('Pengumuman Langsung', introChime, text);
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = originalHtml;
-            }
-        }
-
-        function useTtsTemplate(text) {
-            document.getElementById('ttsAnnouncementText').value = text;
-            showToast('Template disalin ke kotak pengumuman.', 'info');
-        }
-
-        function toggleTtsVoiceOptions() {
-            const isGemini = document.getElementById('ttsEngineSelect').value === 'gemini';
-            document.getElementById('geminiVoiceWrapper').classList.toggle('hidden', !isGemini);
-            document.getElementById('geminiStyleWrapper').classList.toggle('hidden', !isGemini);
         }
 
         /**
@@ -1764,6 +1991,7 @@
         }
 
         function testSpecificBellItem(itemId) {
+            unlockSpeechSynthesis();
             const prof = getSelectedProfile();
             const item = prof?.items.find(i => i.id === itemId);
             if (item) {
