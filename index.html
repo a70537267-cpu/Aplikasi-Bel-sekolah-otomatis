@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OJOLKU - Ojek Online</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
+body{background:#f2f2f2;padding-bottom:80px}
+.header{background:#00c853;color:#fff;padding:16px;text-align:center;position:sticky;top:0;z-index:10}
+.header h1{font-size:22px}
+.header p{font-size:12px;opacity:.9}
+.card{background:#fff;margin:12px;border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+label{font-size:13px;font-weight:bold;color:#333}
+input,select{width:100%;padding:12px;margin:6px 0 12px;border:1px solid #ddd;border-radius:8px;font-size:15px}
+.btn{width:100%;padding:14px;border:none;border-radius:10px;font-size:16px;font-weight:bold;cursor:pointer}
+.btn-green{background:#00c853;color:#fff}
+.btn-dark{background:#222;color:#fff}
+.btn-outline{background:#fff;color:#00c853;border:2px solid #00c853}
+.tabs{display:flex;background:#fff;margin:12px;border-radius:10px;overflow:hidden}
+.tab{flex:1;padding:12px;text-align:center;cursor:pointer;font-weight:bold;font-size:14px}
+.tab.active{background:#00c853;color:#fff}
+.order{border:1px solid #eee;border-radius:10px;padding:12px;margin-top:10px}
+.order b{font-size:15px}
+.badge{display:inline-block;padding:3px 8px;border-radius:20px;font-size:11px;color:#fff;margin-top:6px}
+.menunggu{background:#ff9800}.diterima{background:#2196f3}.selesai{background:#00c853}.batal{background:#e53935}
+.price{font-size:20px;font-weight:bold;color:#00c853;margin:8px 0}
+.small{font-size:12px;color:#888}
+.hidden{display:none}
+.qris-box{text-align:center;background:#f9f9f9;padding:14px;border-radius:10px;margin:10px 0}
+</style>
+</head>
+<body>
+
+<div class="header">
+<h1>🛵 OJOLKU</h1>
+<p>Ojek Online by akomodanetwork.com | QRIS -> Crypto</p>
+</div>
+
+<div class="tabs">
+<div class="tab active" onclick="showTab('customer',this)">Customer</div>
+<div class="tab" onclick="showTab('driver',this)">Driver</div>
+<div class="tab" onclick="showTab('admin',this)">Admin</div>
+</div>
+
+<!-- CUSTOMER -->
+<div id="customer">
+<div class="card">
+<label>📍 Jemput Dimana?</label>
+<input id="jemput" placeholder="Ex: Solo - Manahan">
+<label>🎯 Mau Kemana?</label>
+<input id="tujuan" placeholder="Ex: Solo - Kleco">
+<label>🛵 Pilih Kendaraan</label>
+<select id="kendaraan" onchange="hitungHarga()">
+<option value="motor">Motor - Rp 2.000 / km</option>
+<option value="mobil">Mobil - Rp 4.000 / km</option>
+<option value="kurir">Kurir / Makanan - Rp 2.500 / km</option>
+</select>
+<label>📏 Jarak (km) - isi kira-kira</label>
+<input type="number" id="jarak" value="5" oninput="hitungHarga()">
+<div class="price" id="hargaText">Estimasi: Rp 10.000</div>
+<p class="small">* Harga otomatis, bisa kamu ubah di kode: motor 2000, mobil 4000</p>
+<button class="btn btn-green" onclick="buatOrder()">PESAN SEKARANG</button>
+</div>
+
+<div class="card">
+<h3>🧾 Order Saya</h3>
+<div id="listCustomer"><p class="small">Belum ada order.</p></div>
+</div>
+</div>
+
+<!-- DRIVER -->
+<div id="driver" class="hidden">
+<div class="card">
+<h3>🛵 Halo Driver! Saldo Kamu: <span id="saldoDriver">Rp 0</span></h3>
+<p class="small">Nama Driver: Saldi - Solo (bisa diganti di kode)</p>
+<div id="listDriver"></div>
+</div>
+</div>
+
+<!-- ADMIN -->
+<div id="admin" class="hidden">
+<div class="card">
+<h3>📊 Dashboard Admin</h3>
+<p>Total Order: <b id="totalOrder">0</b> | Total Omset: <b id="totalOmset">Rp 0</b></p>
+<div id="listAdmin"></div>
+<button class="btn btn-outline" style="margin-top:12px" onclick="hapusSemua()">Hapus Semua Order</button>
+</div>
+</div>
+
+<script>
+let orders = JSON.parse(localStorage.getItem('ojolku_orders') || '[]');
+let saldo = parseInt(localStorage.getItem('ojolku_saldo') || '0');
+
+function save(){ localStorage.setItem('ojolku_orders', JSON.stringify(orders)); localStorage.setItem('ojolku_saldo', saldo); render(); }
+function hitungHarga(){
+  let j = parseFloat(document.getElementById('jarak').value) || 1;
+  let k = document.getElementById('kendaraan').value;
+  let perKm = k=='motor'?2000 : k=='mobil'?4000 : 2500;
+  let total = j*perKm;
+  document.getElementById('hargaText').innerText = 'Estimasi: Rp ' + total.toLocaleString('id-ID');
+  return total;
+}
+function buatOrder(){
+  let jemput = document.getElementById('jemput').value;
+  let tujuan = document.getElementById('tujuan').value;
+  let kendaraan = document.getElementById('kendaraan').value;
+  let harga = hitungHarga();
+  if(!jemput || !tujuan){ alert('Isi jemput & tujuan dulu!'); return; }
+  let o = {id: Date.now(), jemput, tujuan, kendaraan, harga, status:'menunggu', waktu: new Date().toLocaleString('id-ID')};
+  orders.unshift(o); save();
+  // Buka payment gateway kamu
+  let bayar = confirm('Order berhasil! Rp '+harga.toLocaleString('id-ID')+'\nMau bayar sekarang via gate.akomodanetwork.com ?');
+  if(bayar){ window.open('https://gate.akomodanetwork.com/?amount='+harga+'&order='+o.id, '_blank'); }
+}
+function terimaOrder(id){
+  let o = orders.find(x=>x.id==id); o.status='diterima'; save();
+}
+function selesaikanOrder(id){
+  let o = orders.find(x=>x.id==id); o.status='selesai'; saldo += o.harga; save(); alert('Order selesai! Saldo driver + Rp '+o.harga.toLocaleString('id-ID'));
+}
+function batalOrder(id){
+  let o = orders.find(x=>x.id==id); o.status='batal'; save();
+}
+function hapusSemua(){ if(confirm('Hapus semua?')){ orders=[]; saldo=0; save(); } }
+function badge(s){
+  let label = s=='menunggu'?'MENUNGGU DRIVER':s=='diterima'?'DRIVER OTW':s=='selesai'?'SELESAI':'BATAL';
+  return '<span class="badge '+s+'">'+label+'</span>';
+}
+function render(){
+  document.getElementById('saldoDriver').innerText = 'Rp '+saldo.toLocaleString('id-ID');
+  document.getElementById('totalOrder').innerText = orders.length;
+  document.getElementById('totalOmset').innerText = 'Rp '+orders.filter(o=>o.status=='selesai').reduce((a,b)=>a+b.harga,0).toLocaleString('id-ID');
+  let htmlCust = orders.map(o=>`<div class="order"><b>${o.jemput} ➜ ${o.tujuan}</b><br><span class="small">${o.kendaraan} | ${o.waktu}</span><div class="price">Rp ${o.harga.toLocaleString('id-ID')}</div>${badge(o.status)}<br><button class="btn btn-outline" style="margin-top:8px;padding:8px" onclick="batalOrder(${o.id})">Batalkan</button></div>`).join('') || '<p class="small">Belum ada order.</p>';
+  document.getElementById('listCustomer').innerHTML = htmlCust;
+  let htmlDriver = orders.filter(o=>o.status=='menunggu'||o.status=='diterima').map(o=>`<div class="order"><b>${o.jemput} ➜ ${o.tujuan}</b><br><span class="small">${o.kendaraan} | Rp ${o.harga.toLocaleString('id-ID')}</span><br>${badge(o.status)}<br>${o.status=='menunggu'?`<button class="btn btn-green" style="margin-top:8px;padding:10px" onclick="terimaOrder(${o.id})">TERIMA ORDER</button>`:`<button class="btn btn-dark" style="margin-top:8px;padding:10px" onclick="selesaikanOrder(${o.id})">SELESAIKAN</button>`}</div>`).join('') || '<p class="small">Gak ada order masuk, nunggu customer pesan.</p>';
+  document.getElementById('listDriver').innerHTML = htmlDriver;
+  let htmlAdmin = orders.map(o=>`<div class="order"><b>#${o.id} - ${o.jemput} ➜ ${o.tujuan}</b><br>${o.kendaraan} - Rp ${o.harga.toLocaleString('id-ID')} - ${o.waktu}<br>${badge(o.status)}</div>`).join('') || '<p class="small">Belum ada data.</p>';
+  document.getElementById('listAdmin').innerHTML = htmlAdmin;
+}
+function showTab(id, el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); el.classList.add('active');
+  ['customer','driver','admin'].forEach(x=>document.getElementById(x).classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+}
+hitungHarga(); render();
+</script>
+</body>
+</html>
